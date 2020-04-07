@@ -1,0 +1,18 @@
+package com.coolweather.android.gosn;
+
+import com.google.gson.annotations.SerializedName;
+
+public class Basic {
+    @SerializedName("city")
+    public String cityNmae;  //城市名
+
+    @SerializedName("id")
+    public String weatherId;  //天气编号
+
+    public Update update;
+
+    public class Update{
+        @SerializedName("loc")
+        public String updatetime;  //更新时间
+    }
+}
