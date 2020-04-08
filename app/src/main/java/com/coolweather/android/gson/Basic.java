@@ -4,7 +4,7 @@ import com.google.gson.annotations.SerializedName;
 
 public class Basic {
     @SerializedName("city")
-    public String cityNmae;  //城市名
+    public String cityName;  //城市名
 
     @SerializedName("id")
     public String weatherId;  //天气编号
@@ -13,6 +13,6 @@ public class Basic {
 
     public class Update{
         @SerializedName("loc")
-        public String updatetime;  //更新时间
+        public String updateTime;  //更新时间
     }
 }
