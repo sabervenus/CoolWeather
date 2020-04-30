@@ -1,6 +1,7 @@
 package com.coolweather.android;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import android.content.SharedPreferences;
 import android.graphics.Color;
@@ -32,29 +33,31 @@ import okhttp3.Response;
 
 public class WeatherActivity extends AppCompatActivity {
 
-   private ScrollView weatherLayout;
-   private TextView titleCity;
-   private TextView titleUpdateTime;
-   private TextView degreeText;
-   private TextView weatherInfoText;
+    private ScrollView weatherLayout;
+    private TextView titleCity;
+    private TextView titleUpdateTime;
+    private TextView degreeText;
+    private TextView weatherInfoText;
 
-   private LinearLayout forecastLayout;
-   private TextView aqiText;
-   private TextView pm25Text;
-   private TextView comfortText;
-   private TextView carWashText;
-   private TextView sportText;
+    private LinearLayout forecastLayout;
+    private TextView aqiText;
+    private TextView pm25Text;
+    private TextView comfortText;
+    private TextView carWashText;
+    private TextView sportText;
     private ImageView bingPicImg;
+    public SwipeRefreshLayout swipeRefreshLayout;
+    private String weatherId;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        if(Build.VERSION.SDK_INT >= 21){
+        if (Build.VERSION.SDK_INT >= 21) {
             View decorView = getWindow().getDecorView();    // 获取DecorView
             decorView.setSystemUiVisibility(
                     View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                            |View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                            | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
             );  // 改变系统UI
             getWindow().setStatusBarColor(Color.TRANSPARENT);   // 设置透明
         }
@@ -74,25 +77,34 @@ public class WeatherActivity extends AppCompatActivity {
         comfortText = findViewById(R.id.comfort_text);
         carWashText = findViewById(R.id.car_wash_text);
         sportText = findViewById(R.id.sport_text);
+        swipeRefreshLayout = findViewById(R.id.swipe_refresh);
 
+        swipeRefreshLayout.setColorSchemeResources(R.color.colorPrimary);   // 设置下拉刷新进度条的颜色
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
-        String weatherString = prefs.getString("weather",null);
-        String bingPic = prefs.getString("bing_pic",null);  // 尝试从缓存中读取
+        String weatherString = prefs.getString("weather", null);
+        String bingPic = prefs.getString("bing_pic", null);  // 尝试从缓存中读取
 
-        if(weatherString != null){
+        if (weatherString != null) {
             //有缓存时直接解析天气数据
             Weather weather = Utility.handleWeatherResponse(weatherString);
+            weatherId = weather.basic.weatherId;
             showWeatherInfo(weather);
-        }else{
+        } else {
             //无缓存时去服务器查询数据
-            String weatherId = getIntent().getStringExtra("weather_id");;
+            weatherId = getIntent().getStringExtra("weather_id");
             weatherLayout.setVisibility(View.INVISIBLE);    // 暂时将ScrollView设为不可见
             requestWeather(weatherId);
         }
+        swipeRefreshLayout.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
+            @Override
+            public void onRefresh() {   // 设置下拉刷新监听器
+                requestWeather(weatherId);
+            }
+        });
 
-        if(bingPic != null){
+        if (bingPic != null) {
             Glide.with(this).load(bingPic).into(bingPicImg);
-        }else{
+        } else {
             loadBingPic();  // 没有读取到则加载
         }
 
@@ -102,7 +114,7 @@ public class WeatherActivity extends AppCompatActivity {
     /**
      * 根据天气Id请求城市天气信息
      */
-    public void requestWeather(final String weatherId){
+    public void requestWeather(final String weatherId) {
         String weatherUrl = "http://guolin.tech/api/weather?cityid=" + weatherId
                 + "&key=013cc18b93cb40e3a9aa4585990d942d"; // 这里的key设置为第一个实训中获取到的API Key
         // 组装地址并发出请求
@@ -110,23 +122,25 @@ public class WeatherActivity extends AppCompatActivity {
             @Override
             public void onResponse(@NotNull Call call, @NotNull Response response) throws IOException {
                 final String responseText = response.body().string();
-                final  Weather weather = Utility.handleWeatherResponse(responseText);   // 将返回数据转换为Weather对象
+                final Weather weather = Utility.handleWeatherResponse(responseText);   // 将返回数据转换为Weather对象
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        if(weather!=null && "ok".equals(weather.status)){
+                        if (weather != null && "ok".equals(weather.status)) {
                             //缓存有效的weather对象(实际上缓存的是字符串)
                             SharedPreferences.Editor editor = PreferenceManager
                                     .getDefaultSharedPreferences(WeatherActivity.this).edit();
-                            editor.putString("weather",responseText);
+                            editor.putString("weather", responseText);
                             editor.apply();
                             showWeatherInfo(weather);   // 显示内容
-                        }else{
+                        } else {
                             Toast.makeText(WeatherActivity.this, "获取天气信息失败", Toast.LENGTH_SHORT).show();
                         }
+                        swipeRefreshLayout.setRefreshing(false);    // 表示刷新事件结束并隐藏刷新进度条
                     }
                 });
             }
+
             @Override
             public void onFailure(@NotNull Call call, @NotNull IOException e) {
                 e.printStackTrace();
@@ -134,6 +148,7 @@ public class WeatherActivity extends AppCompatActivity {
                     @Override
                     public void run() {
                         Toast.makeText(WeatherActivity.this, "获取天气信息失败", Toast.LENGTH_SHORT).show();
+                        swipeRefreshLayout.setRefreshing(false);
                     }
                 });
             }
@@ -143,9 +158,10 @@ public class WeatherActivity extends AppCompatActivity {
 
     /**
      * 处理并展示Weather实体类中的数据
+     *
      * @param weather
      */
-    private void showWeatherInfo(Weather weather){
+    private void showWeatherInfo(Weather weather) {
         // 从Weather对象中获取数据
         String cityName = weather.basic.cityName;
         String updateTime = weather.basic.update.updateTime.split(" ")[1]; //按24小时计时的时间
@@ -157,8 +173,8 @@ public class WeatherActivity extends AppCompatActivity {
         degreeText.setText(degree);
         weatherInfoText.setText(weatherInfo);
         forecastLayout.removeAllViews();
-        for(Forecast forecast:weather.forecastList){    // 循环处理每天的天气信息
-            View view = LayoutInflater.from(this).inflate(R.layout.forecast_item,forecastLayout,false);
+        for (Forecast forecast : weather.forecastList) {    // 循环处理每天的天气信息
+            View view = LayoutInflater.from(this).inflate(R.layout.forecast_item, forecastLayout, false);
             // 加载布局
             TextView dateText = view.findViewById(R.id.date_text);
             TextView infoText = view.findViewById(R.id.info_text);
@@ -172,13 +188,13 @@ public class WeatherActivity extends AppCompatActivity {
             // 添加到父布局
             forecastLayout.addView(view);
         }
-        if(weather.aqi != null){
+        if (weather.aqi != null) {
             aqiText.setText(weather.aqi.city.aqi);
             pm25Text.setText(weather.aqi.city.pm25);
         }
         String comfort = "舒适度: " + weather.suggestion.comfort.info;
         String carWash = "洗车指数: " + weather.suggestion.carWash.info;
-        String sport = "运动建议: "+ weather.suggestion.sport.info;
+        String sport = "运动建议: " + weather.suggestion.sport.info;
         comfortText.setText(comfort);
         carWashText.setText(carWash);
         sportText.setText(sport);
@@ -188,14 +204,14 @@ public class WeatherActivity extends AppCompatActivity {
     /**
      * 加载必应每日一图
      */
-    private void loadBingPic(){
+    private void loadBingPic() {
         String requestBingPic = "http://guolin.tech/api/bing_pic";
         HttpUtil.sendOkHttpRequest(requestBingPic, new Callback() {
             @Override
             public void onResponse(@NotNull Call call, @NotNull Response response) throws IOException {
                 final String bingPic = response.body().string();    // 获取背景图链接
                 SharedPreferences.Editor editor = PreferenceManager.getDefaultSharedPreferences(WeatherActivity.this).edit();
-                editor.putString("bing_pic",bingPic);
+                editor.putString("bing_pic", bingPic);
                 editor.apply(); // 将北京图链接存到 SharedPreferences 中
                 runOnUiThread(new Runnable() {
                     @Override
@@ -204,6 +220,7 @@ public class WeatherActivity extends AppCompatActivity {
                     }
                 });
             }
+
             @Override
             public void onFailure(@NotNull Call call, @NotNull IOException e) {
                 e.printStackTrace();
